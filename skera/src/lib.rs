@@ -405,6 +405,20 @@ impl Plan {
                 })
     }
 
+    /// Iterate the mapping from glyph IDs in the input font to glyph IDs in
+    /// the subset font produced by this plan.
+    pub fn old_to_new_glyph_mapping(&self) -> impl Iterator<Item = (GlyphId, GlyphId)> + '_ {
+        self.new_to_old_gid_list
+            .iter()
+            .map(|&(new_gid, old_gid)| (old_gid, new_gid))
+    }
+
+    /// Iterate the mapping from glyph IDs in the subset font produced by this
+    /// plan to glyph IDs in the input font.
+    pub fn new_to_old_glyph_mapping(&self) -> impl Iterator<Item = (GlyphId, GlyphId)> + '_ {
+        self.new_to_old_gid_list.iter().copied()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         input_gids: &IntSet<GlyphId>,
@@ -1472,6 +1486,69 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
 #[cfg(test)]
 mod test {
     use super::*;
+    #[test]
+    fn exposes_dense_and_retained_gid_mappings() {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let mut input_gids = IntSet::empty();
+        input_gids.insert(GlyphId::new(5));
+
+        let dense = Plan::new(
+            &input_gids,
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+        );
+        assert_eq!(
+            dense.old_to_new_glyph_mapping().collect::<Vec<_>>(),
+            vec![
+                (GlyphId::new(0), GlyphId::new(0)),
+                (GlyphId::new(1), GlyphId::new(1)),
+                (GlyphId::new(5), GlyphId::new(2)),
+            ]
+        );
+        assert_eq!(
+            dense.new_to_old_glyph_mapping().collect::<Vec<_>>(),
+            vec![
+                (GlyphId::new(0), GlyphId::new(0)),
+                (GlyphId::new(1), GlyphId::new(1)),
+                (GlyphId::new(2), GlyphId::new(5)),
+            ]
+        );
+
+        let retained = Plan::new(
+            &input_gids,
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+        );
+        assert_eq!(
+            retained.old_to_new_glyph_mapping().collect::<Vec<_>>(),
+            vec![
+                (GlyphId::new(0), GlyphId::new(0)),
+                (GlyphId::new(1), GlyphId::new(1)),
+                (GlyphId::new(5), GlyphId::new(5)),
+            ]
+        );
+        assert_eq!(
+            retained.new_to_old_glyph_mapping().collect::<Vec<_>>(),
+            vec![
+                (GlyphId::new(0), GlyphId::new(0)),
+                (GlyphId::new(1), GlyphId::new(1)),
+                (GlyphId::new(5), GlyphId::new(5)),
+            ]
+        );
+    }
+
     #[test]
     fn populate_unicodes_wo_input_gid() {
         let mut plan = Plan::default();
