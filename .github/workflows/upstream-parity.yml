@@ -1,0 +1,130 @@
+name: Upstream parity
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "29 2 * * *"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-parity
+  cancel-in-progress: true
+
+env:
+  PARITY_ISSUE_TITLE: "Automated upstream parity failure"
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  rebase-test-promote:
+    # A scheduled rebase pushes the rewritten patch stack with GITHUB_TOKEN.
+    # Do not immediately build the exact same result a second time.
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 64
+          fetch-tags: false
+
+      - name: Configure Git
+        run: |
+          git config user.name "fontations-redox parity bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/googlefonts/fontations.git
+          git fetch --no-tags --depth=512 upstream main
+          echo "OLD_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "UPSTREAM_HEAD=$(git rev-parse upstream/main)" >> "$GITHUB_ENV"
+
+      - name: Rebase carried patch
+        run: git rebase upstream/main
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt
+          rustup default stable
+
+      - name: Diff sanity
+        run: |
+          git diff --check upstream/main...HEAD
+          commits=$(git rev-list --count upstream/main..HEAD)
+          files=$(git diff --name-only upstream/main...HEAD | wc -l)
+          echo "carried commits: $commits"
+          echo "changed files: $files"
+
+          unexpected=0
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/upstream-parity.yml|\
+              skera/src/lib.rs)
+                ;;
+              *)
+                echo "unexpected downstream path: $file" >&2
+                unexpected=1
+                ;;
+            esac
+          done < <(git diff --name-only upstream/main...HEAD)
+          test "$unexpected" -eq 0
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: GID mapping regression
+        run: cargo test -p skera --lib exposes_dense_and_retained_gid_mappings
+
+      - name: Skera tests
+        run: cargo test -p skera --lib
+
+      - name: Skera check
+        run: cargo check -p skera --all-targets
+
+      - name: Promote rebased branch
+        run: |
+          new_head=$(git rev-parse HEAD)
+          if [ "$new_head" != "$OLD_HEAD" ]; then
+            git push --force-with-lease=main:"$OLD_HEAD" origin HEAD:main
+          fi
+
+      - name: Close recovered parity issue
+        if: success()
+        run: |
+          issue=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" |
+            jq -r --arg title "$PARITY_ISSUE_TITLE" '.[] | select(.pull_request | not) | select(.title == $title) | .number' |
+            head -n1)
+          if [ -n "$issue" ]; then
+            jq -n --arg body "Parity recovered at upstream $UPSTREAM_HEAD in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID." '{body:$body}' |
+              gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$issue/comments" --input -
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/$issue" -f state=closed >/dev/null
+          fi
+
+      - name: Report parity failure
+        if: failure()
+        run: |
+          git rebase --abort >/dev/null 2>&1 || true
+          {
+            echo "Daily upstream parity failed."
+            echo
+            echo "- Upstream: ${UPSTREAM_HEAD:-unknown}"
+            echo "- Fork before run: ${OLD_HEAD:-unknown}"
+            echo "- Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            echo "The fork intentionally carries only the Skera Plan glyph-mapping API plus this parity workflow; upstream wins everywhere else."
+          } > /tmp/parity-issue.md
+          issue=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" |
+            jq -r --arg title "$PARITY_ISSUE_TITLE" '.[] | select(.pull_request | not) | select(.title == $title) | .number' |
+            head -n1)
+          if [ -n "$issue" ]; then
+            jq -n --rawfile body /tmp/parity-issue.md '{body:$body}' |
+              gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$issue/comments" --input -
+          else
+            jq -n --arg title "$PARITY_ISSUE_TITLE" --rawfile body /tmp/parity-issue.md '{title:$title,body:$body}' |
+              gh api --method POST "repos/$GITHUB_REPOSITORY/issues" --input -
+          fi
