@@ -405,6 +405,14 @@ impl Plan {
                 })
     }
 
+    /// Add table tags that should be copied verbatim instead of subsetted.
+    ///
+    /// This extends Skera's built-in no-subset set; it does not override tables
+    /// explicitly selected for dropping.
+    pub fn extend_no_subset_tables(&mut self, tags: impl IntoIterator<Item = Tag>) {
+        self.no_subset_tables.extend(tags);
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         input_gids: &IntSet<GlyphId>,
@@ -1472,6 +1480,40 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
 #[cfg(test)]
 mod test {
     use super::*;
+    #[test]
+    fn caller_can_preserve_subsettable_tables_verbatim() {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let source_cmap = font.data_for_tag(Cmap::TAG).unwrap().as_bytes();
+        let mut input_gids = IntSet::empty();
+        input_gids.insert(GlyphId::new(5));
+
+        let mut plan = Plan::new(
+            &input_gids,
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+        );
+        let ordinary = subset_font(&font, &plan).unwrap();
+        let ordinary_font = FontRef::new(&ordinary).unwrap();
+        assert_ne!(
+            ordinary_font.data_for_tag(Cmap::TAG).unwrap().as_bytes(),
+            source_cmap
+        );
+
+        plan.extend_no_subset_tables([Cmap::TAG]);
+        let preserved = subset_font(&font, &plan).unwrap();
+        let preserved_font = FontRef::new(&preserved).unwrap();
+        assert_eq!(
+            preserved_font.data_for_tag(Cmap::TAG).unwrap().as_bytes(),
+            source_cmap
+        );
+    }
+
     #[test]
     fn populate_unicodes_wo_input_gid() {
         let mut plan = Plan::default();
