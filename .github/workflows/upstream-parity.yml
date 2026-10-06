@@ -77,8 +77,10 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
 
-      - name: GID mapping regression
-        run: cargo test -p skera --lib exposes_dense_and_retained_gid_mappings
+      - name: Downstream Plan API regressions
+        run: |
+          cargo test -p skera --lib exposes_dense_and_retained_gid_mappings
+          cargo test -p skera --lib caller_can_preserve_subsettable_tables_verbatim
 
       - name: Skera tests
         run: cargo test -p skera --lib
@@ -116,7 +118,7 @@ jobs:
             echo "- Fork before run: ${OLD_HEAD:-unknown}"
             echo "- Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo
-            echo "The fork intentionally carries only the Skera Plan glyph-mapping API plus this parity workflow; upstream wins everywhere else."
+            echo "The fork intentionally carries only small Skera Plan configuration/introspection APIs plus this parity workflow; upstream wins everywhere else."
           } > /tmp/parity-issue.md
           issue=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" |
             jq -r --arg title "$PARITY_ISSUE_TITLE" '.[] | select(.pull_request | not) | select(.title == $title) | .number' |
