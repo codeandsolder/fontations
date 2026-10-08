@@ -169,10 +169,9 @@ impl Fixed {
             bu = 0u64.wrapping_sub(bu);
             sign = -sign;
         }
-        let result = if bu > 0 {
-            su.wrapping_mul(au).wrapping_add(bu >> 1) / bu
-        } else {
-            0x7FFFFFFF
+        let result = match su.wrapping_mul(au).wrapping_add(bu >> 1).checked_div(bu) {
+            Some(value) => value,
+            None => 0x7FFFFFFF,
         };
         Self(if sign < 0 {
             (result as i32).wrapping_neg()
@@ -199,10 +198,9 @@ impl Div for Fixed {
         let sign = (self.0 < 0) ^ (other.0 < 0);
         let au = self.0.unsigned_abs() as u64;
         let bu = other.0.unsigned_abs() as u64;
-        let q = if bu == 0 {
-            0x7FFFFFFF_u32
-        } else {
-            (((au << 16) + (bu >> 1)) / bu) as u32
+        let q = match ((au << 16) + (bu >> 1)).checked_div(bu) {
+            Some(value) => value as u32,
+            None => 0x7FFFFFFF_u32,
         };
         Self(if sign {
             (q as i32).wrapping_neg()
@@ -229,10 +227,9 @@ impl Div for F26Dot6 {
         let sign = (self.0 < 0) ^ (other.0 < 0);
         let au = self.0.unsigned_abs() as u64;
         let bu = other.0.unsigned_abs() as u64;
-        let q = if bu == 0 {
-            0x7FFFFFFF_u32
-        } else {
-            (((au << 6) + (bu >> 1)) / bu) as u32
+        let q = match ((au << 6) + (bu >> 1)).checked_div(bu) {
+            Some(value) => value as u32,
+            None => 0x7FFFFFFF_u32,
         };
         Self(if sign {
             (q as i32).wrapping_neg()
