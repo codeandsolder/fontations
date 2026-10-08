@@ -593,16 +593,12 @@ impl From<&(&str, f32)> for Variation {
 /// number of coords while minimizing space overhead.
 const MAX_INLINE_COORDS: usize = 15;
 
+#[derive(Default)]
 enum CoordStorage {
+    #[default]
     None,
     Inline([NormalizedCoord; MAX_INLINE_COORDS], u8),
     Heap(Vec<NormalizedCoord>),
-}
-
-impl Default for CoordStorage {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl CoordStorage {

@@ -9,8 +9,9 @@ use crate::ps::error::Error;
 pub use super::{v1::Index as Index1, v2::Index as Index2};
 
 /// Common type for uniform access to CFF and CFF2 index formats.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum Index<'a> {
+    #[default]
     Empty,
     Format1(Index1<'a>),
     Format2(Index2<'a>),
@@ -104,12 +105,6 @@ impl<'a> From<Index1<'a>> for Index<'a> {
 impl<'a> From<Index2<'a>> for Index<'a> {
     fn from(value: Index2<'a>) -> Self {
         Self::Format2(value)
-    }
-}
-
-impl Default for Index<'_> {
-    fn default() -> Self {
-        Self::Empty
     }
 }
 

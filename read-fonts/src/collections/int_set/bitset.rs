@@ -198,10 +198,7 @@ impl U32Set {
             Err(info_index) => info_index,
         };
 
-        loop {
-            let Some(info) = self.page_map.get(info_index) else {
-                break;
-            };
+        while let Some(info) = self.page_map.get(info_index) {
             let Some(page) = self.pages.get_mut(info.index as usize) else {
                 break;
             };
@@ -1017,7 +1014,8 @@ mod test {
         assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
     }
 
-    fn check_iter_ranges(ranges: Vec<RangeInclusive<u32>>) {
+    fn check_iter_ranges(ranges: impl IntoIterator<Item = RangeInclusive<u32>>) {
+        let ranges = ranges.into_iter().collect::<Vec<_>>();
         let mut set = U32Set::empty();
         for range in ranges.iter() {
             set.insert_range(*range.start()..=*range.end());
@@ -1028,20 +1026,20 @@ mod test {
 
     #[test]
     fn iter_ranges() {
-        check_iter_ranges(vec![0..=0]);
-        check_iter_ranges(vec![4578..=4578]);
-        check_iter_ranges(vec![0..=10, 4578..=4583]);
-        check_iter_ranges(vec![0..=700]);
-        check_iter_ranges(vec![353..=737]);
+        check_iter_ranges(std::iter::once(0..=0));
+        check_iter_ranges(std::iter::once(4578..=4578));
+        check_iter_ranges([0..=10, 4578..=4583]);
+        check_iter_ranges(std::iter::once(0..=700));
+        check_iter_ranges(std::iter::once(353..=737));
 
-        check_iter_ranges(vec![u32::MAX..=u32::MAX]);
-        check_iter_ranges(vec![(u32::MAX - 10)..=u32::MAX]);
-        check_iter_ranges(vec![0..=5, (u32::MAX - 5)..=u32::MAX]);
+        check_iter_ranges(std::iter::once(u32::MAX..=u32::MAX));
+        check_iter_ranges(std::iter::once((u32::MAX - 10)..=u32::MAX));
+        check_iter_ranges([0..=5, (u32::MAX - 5)..=u32::MAX]);
 
-        check_iter_ranges(vec![0..=511, 513..=517]);
-        check_iter_ranges(vec![512..=1023, 1025..=1027]);
+        check_iter_ranges([0..=511, 513..=517]);
+        check_iter_ranges([512..=1023, 1025..=1027]);
 
-        check_iter_ranges(vec![1792..=2650]);
+        check_iter_ranges(std::iter::once(1792..=2650));
     }
 
     #[test]
