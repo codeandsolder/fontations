@@ -757,7 +757,8 @@ mod test {
         assert_eq!(items, vec![511]);
     }
 
-    fn check_iter_ranges(ranges: Vec<RangeInclusive<u32>>) {
+    fn check_iter_ranges(ranges: impl IntoIterator<Item = RangeInclusive<u32>>) {
+        let ranges = ranges.into_iter().collect::<Vec<_>>();
         let mut page = BitPage::new_zeroes();
         for range in ranges.iter() {
             page.insert_range(*range.start(), *range.end());
@@ -769,27 +770,27 @@ mod test {
     #[test]
     fn iter_ranges() {
         // basic
-        check_iter_ranges(vec![]);
-        check_iter_ranges(vec![0..=5]);
-        check_iter_ranges(vec![0..=0, 5..=5, 10..=10]);
-        check_iter_ranges(vec![0..=5, 12..=31]);
-        check_iter_ranges(vec![12..=31]);
-        check_iter_ranges(vec![71..=84]);
-        check_iter_ranges(vec![273..=284]);
-        check_iter_ranges(vec![0..=511]);
+        check_iter_ranges([]);
+        check_iter_ranges(std::iter::once(0..=5));
+        check_iter_ranges([0..=0, 5..=5, 10..=10]);
+        check_iter_ranges([0..=5, 12..=31]);
+        check_iter_ranges(std::iter::once(12..=31));
+        check_iter_ranges(std::iter::once(71..=84));
+        check_iter_ranges(std::iter::once(273..=284));
+        check_iter_ranges(std::iter::once(0..=511));
 
         // end of boundary
-        check_iter_ranges(vec![511..=511]);
-        check_iter_ranges(vec![500..=511]);
-        check_iter_ranges(vec![400..=511]);
-        check_iter_ranges(vec![0..=511]);
+        check_iter_ranges(std::iter::once(511..=511));
+        check_iter_ranges(std::iter::once(500..=511));
+        check_iter_ranges(std::iter::once(400..=511));
+        check_iter_ranges(std::iter::once(0..=511));
 
         // continuation ranges
-        check_iter_ranges(vec![64..=127]);
-        check_iter_ranges(vec![64..=127, 129..=135]);
-        check_iter_ranges(vec![64..=135]);
-        check_iter_ranges(vec![71..=135]);
-        check_iter_ranges(vec![71..=435]);
+        check_iter_ranges(std::iter::once(64..=127));
+        check_iter_ranges([64..=127, 129..=135]);
+        check_iter_ranges(std::iter::once(64..=135));
+        check_iter_ranges(std::iter::once(71..=135));
+        check_iter_ranges(std::iter::once(71..=435));
     }
 
     #[test]

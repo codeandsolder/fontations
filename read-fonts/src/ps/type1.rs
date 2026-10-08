@@ -138,15 +138,13 @@ impl Type1Font {
                         font.subrs = parser.read_subrs(len_iv)?;
                     }
                 }
-                Token::Name(b"CharStrings") => {
+                Token::Name(b"CharStrings") if font.charstrings.index.is_empty() => {
                     // Some non-standard fonts provide multiple copies of
                     // outlines for different resolutions and FreeType only
                     // retains the first copy, so skip parsing if we've
                     // already read some charstrings.
                     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L2058>
-                    if font.charstrings.index.is_empty() {
-                        font.charstrings = parser.read_charstrings(len_iv)?;
-                    }
+                    font.charstrings = parser.read_charstrings(len_iv)?;
                 }
                 _ => {}
             }
@@ -640,10 +638,7 @@ fn decode_hex(mut bytes: impl Iterator<Item = u8>) -> impl Iterator<Item = u8> {
     ];
     let mut pad = 0x1_u32;
     core::iter::from_fn(move || {
-        loop {
-            let Some(c) = bytes.next() else {
-                break;
-            };
+        for c in bytes.by_ref() {
             if is_whitespace(c) {
                 continue;
             }
